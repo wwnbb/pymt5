@@ -1,9 +1,10 @@
-
 import socket
 
+from .mt5_exceptions import MT5ConnectionError
+from .mt5_exceptions import MT5SocketError
 from .mt5_logger import MT5Logger
-from .mt5_protocol import MT5HeaderProtocol, MT5BodyProtocol
-from .mt5_exceptions import MT5ConnectionError, MT5SocketError
+from .mt5_protocol import MT5BodyProtocol
+from .mt5_protocol import MT5HeaderProtocol
 
 
 class MT5Connect(object):
@@ -25,7 +26,12 @@ class MT5Connect(object):
 
     __socket = None
 
-    def __init__(self, host, port, timeout=5, is_crypt=False, log_level='ERROR'):
+    def __init__(self,
+                 host,
+                 port,
+                 timeout=5,
+                 is_crypt=False,
+                 log_level='ERROR'):
         """
         Connection init
         :param host: MT5 server host
@@ -52,17 +58,17 @@ class MT5Connect(object):
         """
 
         try:
-            self.__socket = socket.create_connection(address=(self.host, self.port))
+            self.__socket = socket.create_connection(
+                address=(self.host, self.port))
         except socket.error as e:
             message = "Can't not connect to MT5 server"
             self.logger.error(str(e))
             self.logger.error(message)
             raise MT5ConnectionError(message)
         else:
-            self.logger.debug("Successful connection")
+            self.logger.info("Successful connection")
 
         self.__socket.setblocking(True)
-
         """
         Set WebAPI Mode
         """
@@ -93,23 +99,18 @@ class MT5Connect(object):
             self.logger.error("Connection is broken. Data can't be sent")
 
         self.number_command = \
-            (self.number_command + 1) if self.number_command < self.MAX_CLIENT_COMMAND else 0
+            (self.number_command +
+             1) if self.number_command < self.MAX_CLIENT_COMMAND else 0
 
-        body = MT5BodyProtocol(
-            command=command,
-            options=options,
-            data=data
-        )
+        body = MT5BodyProtocol(command=command, options=options, data=data)
 
         body_data = self.crypt.crypt_packet(body.bytes) \
             if self.is_crypt and self.crypt else body.bytes
 
         header_data = MT5HeaderProtocol(
-            body_size=len(body_data),
-            number_command=self.number_command
-        ).bytes
+            body_size=len(body_data), number_command=self.number_command).bytes
 
-        self.logger.debug("Send data: " + str(body).replace('\r\n', ' '))
+        self.logger.info("Send data: " + str(body).replace('\r\n', ' '))
 
         try:
             self.__socket.send(header_data)
@@ -158,8 +159,10 @@ class MT5Connect(object):
 
                 if header.body_size != 0:
                     self.logger.debug(
-                        "Number of packet incorrect. Need: %d, but get %d" %
-                        (self.number_command, header.number_command, ))
+                        "Number of packet incorrect. Need: %d, but get %d" % (
+                            self.number_command,
+                            header.number_command,
+                        ))
                 else:
                     self.logger.debug("PING Packet")
 
@@ -167,7 +170,9 @@ class MT5Connect(object):
 
             break
 
-        self.logger.debug("Read data: " + str(body).replace('\r\n', ' '))
+        # The size of the request can be too Long and not
+        # convenient to read, there is no need to show
+        self.logger.debug("Read data: " + len(str(body)))
 
         return header, body
 
@@ -214,4 +219,3 @@ class MT5Connect(object):
             pass
 
         self.logger.debug("Connection closed")
-
